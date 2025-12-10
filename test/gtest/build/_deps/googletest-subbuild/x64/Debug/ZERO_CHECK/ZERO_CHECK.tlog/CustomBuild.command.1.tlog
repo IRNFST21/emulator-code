@@ -1,0 +1,10 @@
+^C:\USERS\YERED\ONEDRIVE\BUREAUBLAD\EMULATOR CODE\TEST\GTEST\BUILD\_DEPS\GOOGLETEST-SUBBUILD\CMAKEFILES\8CFFEBCB700F73BCF63B6CC8CEDCDC66\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" "-SC:/Users/yered/OneDrive/Bureaublad/emulator code/test/gtest/build/_deps/googletest-subbuild" "-BC:/Users/yered/OneDrive/Bureaublad/emulator code/test/gtest/build/_deps/googletest-subbuild" --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file "C:/Users/yered/OneDrive/Bureaublad/emulator code/test/gtest/build/_deps/googletest-subbuild/googletest-populate.sln"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

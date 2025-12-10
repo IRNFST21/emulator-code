@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "C:/Users/yered/OneDrive/Bureaublad/emulator code/build/_deps/googletest-subbuild/CMakeFiles/googletest-populate"
+		},
+		{
+			"file" : "C:/Users/yered/OneDrive/Bureaublad/emulator code/build/_deps/googletest-subbuild/CMakeFiles/3449eb19904e4aeb1e27db99777b3aa6/googletest-populate.rule"
+		},
+		{
+			"file" : "C:/Users/yered/OneDrive/Bureaublad/emulator code/build/_deps/googletest-subbuild/CMakeFiles/ae19a73b9003b2f1603dca01293f6fb2/googletest-populate-complete.rule"
+		},
+		{
+			"file" : "C:/Users/yered/OneDrive/Bureaublad/emulator code/build/_deps/googletest-subbuild/CMakeFiles/46f47ea410e98f7bcd6dd056d8913dc8/googletest-populate-build.rule"
+		},
+		{
+			"file" : "C:/Users/yered/OneDrive/Bureaublad/emulator code/build/_deps/googletest-subbuild/CMakeFiles/46f47ea410e98f7bcd6dd056d8913dc8/googletest-populate-configure.rule"
+		},
+		{
+			"file" : "C:/Users/yered/OneDrive/Bureaublad/emulator code/build/_deps/googletest-subbuild/CMakeFiles/46f47ea410e98f7bcd6dd056d8913dc8/googletest-populate-download.rule"
+		},
+		{
+			"file" : "C:/Users/yered/OneDrive/Bureaublad/emulator code/build/_deps/googletest-subbuild/CMakeFiles/46f47ea410e98f7bcd6dd056d8913dc8/googletest-populate-install.rule"
+		},
+		{
+			"file" : "C:/Users/yered/OneDrive/Bureaublad/emulator code/build/_deps/googletest-subbuild/CMakeFiles/46f47ea410e98f7bcd6dd056d8913dc8/googletest-populate-mkdir.rule"
+		},
+		{
+			"file" : "C:/Users/yered/OneDrive/Bureaublad/emulator code/build/_deps/googletest-subbuild/CMakeFiles/46f47ea410e98f7bcd6dd056d8913dc8/googletest-populate-patch.rule"
+		},
+		{
+			"file" : "C:/Users/yered/OneDrive/Bureaublad/emulator code/build/_deps/googletest-subbuild/CMakeFiles/46f47ea410e98f7bcd6dd056d8913dc8/googletest-populate-test.rule"
+		},
+		{
+			"file" : "C:/Users/yered/OneDrive/Bureaublad/emulator code/build/_deps/googletest-subbuild/CMakeFiles/46f47ea410e98f7bcd6dd056d8913dc8/googletest-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"googletest-populate"
+		],
+		"name" : "googletest-populate"
+	}
+}

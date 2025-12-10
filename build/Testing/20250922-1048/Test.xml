@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Site BuildName="(empty)"
+	BuildStamp="20250922-1048-Experimental"
+	Name="(empty)"
+	Generator="ctest-4.1.1"
+	CompilerName=""
+	CompilerVersion=""
+	OSName="Windows"
+	Hostname="LAPTOP-SF73915J"
+	OSRelease=" Personal"
+	OSVersion=" (Build 19045)"
+	OSPlatform="AMD64"
+	Is64Bits="1"
+	VendorString="AuthenticAMD"
+	VendorID="Advanced Micro Devices"
+	FamilyID="15"
+	ModelID="0"
+	ModelName="AMD Ryzen 7 5800HS with Radeon Graphics"
+	ProcessorCacheSize="64"
+	NumberOfLogicalCPU="16"
+	NumberOfPhysicalCPU="8"
+	TotalVirtualMemory="29056"
+	TotalPhysicalMemory="15776"
+	LogicalProcessorsPerPhysical="2"
+	ProcessorClockFrequency="3201"
+	>
+	<Testing>
+		<StartDateTime>Dec 10 20:18 West-Europa (standaardtijd)</StartDateTime>
+		<StartTestTime>1765394287</StartTestTime>
+		<TestList/>
+		<EndDateTime>Dec 10 20:18 West-Europa (standaardtijd)</EndDateTime>
+		<EndTestTime>1765394287</EndTestTime>
+		<ElapsedMinutes>0</ElapsedMinutes>
+	</Testing>
+</Site>

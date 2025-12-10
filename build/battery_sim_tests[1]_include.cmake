@@ -1,0 +1,5 @@
+if(EXISTS "C:/Users/yered/OneDrive/Bureaublad/emulator code/build/battery_sim_tests[1]_tests.cmake")
+  include("C:/Users/yered/OneDrive/Bureaublad/emulator code/build/battery_sim_tests[1]_tests.cmake")
+else()
+  add_test(battery_sim_tests_NOT_BUILT battery_sim_tests_NOT_BUILT)
+endif()

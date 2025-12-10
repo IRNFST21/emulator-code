@@ -1,0 +1,10 @@
+^C:\USERS\YERED\ONEDRIVE\BUREAUBLAD\EMULATOR CODE\BUILD\CMAKEFILES\4B859CF45E3DF3C3FDC4799D93991762\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" "-SC:/Users/yered/OneDrive/Bureaublad/emulator code/test/gtest" "-BC:/Users/yered/OneDrive/Bureaublad/emulator code/build" --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file "C:/Users/yered/OneDrive/Bureaublad/emulator code/build/battery_sim_tests.sln"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

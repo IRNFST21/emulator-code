@@ -1,0 +1,14 @@
+{
+    "C_Cpp.errorSquiggles": "disabled",
+
+    // Vertel TestMate waar je test executables staan
+    "testMate.cpp.test.advancedExecutables": [
+        {
+            // Pad naar jouw gtest build folder
+            "pattern": "${workspaceFolder}/test/gtest/build/**/*{test,tests,Test,Tests}*",
+            "exclude": ["**/.pio/**"],            // negeer PlatformIO buildmap
+            "cwd": "${workspaceFolder}/test/gtest/build"
+        }
+    ],
+    "cmake.sourceDirectory": "C:/Users/yered/OneDrive/Bureaublad/emulator code/test/gtest"
+}
