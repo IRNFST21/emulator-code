@@ -17,6 +17,10 @@
 #define LCD_WR   20    // WR
 #define LCD_RST  -1    // zet op GPIO als je RST aan een pin hebt, anders -1 (aan 3V3)
 
+constexpr uint16_t ILI9488_WIDTH  = 320;
+constexpr uint16_t ILI9488_HEIGHT = 480;
+
+
 static const int lcd_data_pins[8] = {
   LCD_D0, LCD_D1, LCD_D2, LCD_D3,
   LCD_D4, LCD_D5, LCD_D6, LCD_D7
@@ -61,7 +65,27 @@ inline void lcd_writeColor(uint16_t c)
   lcd_writeData(c & 0xFF);
 }
 
+inline void ili9488_set_rotation(uint8_t r) {
+  uint8_t madctl = 0;
 
+  switch (r & 3) {
+    case 0: // portret
+      madctl = 0x48;  // MX | BGR
+      break;
+    case 1: // landscape (90°)
+      madctl = 0x28;  // MV | BGR
+      break;
+    case 2: // portret 180°
+      madctl = 0x88;  // MY | BGR
+      break;
+    case 3: // landscape 180°
+      madctl = 0xE8;  // MX | MY | MV | BGR
+      break;
+  }
+
+  lcd_writeCommand(0x36);
+  lcd_writeData(madctl);
+}
 
 inline void ili9488_set_window(uint16_t x, uint16_t y, uint16_t w, uint16_t h)
 {
@@ -124,15 +148,17 @@ inline void ili9488_init()
   lcd_writeData(0x55);
 
   // Memory Access Control: portret, geen spiegeling, RGB (BGR=0, MV=0)
-  lcd_writeCommand(0x36);
-  lcd_writeData(0x48);
+  // lcd_writeCommand(0x36);
+  // lcd_writeData(0x48);
 
   // Display inversion OFF (heel belangrijk om zwart/wit omkering uit te zetten)
-  // lcd_writeCommand(0x20);
+  lcd_writeCommand(0x20);  // of 0x21, afhankelijk van jouw werkende situatie
 
   // Display on
   lcd_writeCommand(0x29);
   delay(20);
+
+  ili9488_set_rotation(1);
 }
 
 inline void ili9488_fill_screen(uint16_t color)
@@ -169,6 +195,8 @@ inline void ili9488_push_pixels(uint16_t x, uint16_t y,
     lcd_writeColor(c);
   }
 }
+
+
 
 
 

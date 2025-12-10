@@ -26,8 +26,8 @@ void backlight_init_and_on() {
 
 // ---------------- LVGL KOPPELING ----------------
 void lvgl_port_init() {
-  uint16_t hor_res = 320;
-  uint16_t ver_res = 480;
+  uint16_t hor_res = 480;
+  uint16_t ver_res = 320;
 
   disp = lv_display_create(hor_res, ver_res);
 
