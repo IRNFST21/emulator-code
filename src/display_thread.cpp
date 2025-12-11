@@ -4,6 +4,7 @@
 #include <lvgl.h>
 #include "ili9488_driver.hpp"
 #include "display_thread.hpp"
+#include "ui_screens.hpp"
 
 // ---------------- BACKLIGHT ----------------
 Adafruit_AW9523 aw;
@@ -22,6 +23,15 @@ static lv_obj_t* label_total = nullptr;
 static float sum_a = 0.0f;
 static float sum_b = 0.0f;
 static int   chart_x = 0;
+
+enum class ActiveUI : uint8_t {
+  UI1 = 0,
+  UI2 = 1,
+};
+
+static ActiveUI current_ui = ActiveUI::UI1;
+
+
 
 // ---------------- BACKLIGHT INIT ----------------
 static void backlight_init_and_on() {
@@ -171,23 +181,49 @@ void display_task(void* pvParameters) {
   lv_init();
   lvgl_port_init();
 
-  // UI opbouwen
-  ui_create_initial_screen();
+  // Start met UI1
+  current_ui = ActiveUI::UI1;
+  ui1_create();
 
   uint32_t last_update = millis();
+  uint32_t last_switch = millis();
 
-  // FreeRTOS main-loop voor de display
   while (true) {
-    // Tijd doorgeven aan LVGL
+    // LVGL tick + timers
     lv_tick_inc(5);
     lv_timer_handler();
 
     uint32_t now = millis();
-    if (now - last_update > 1000) {
+
+    // Elke 1 seconde: actieve UI updaten
+    if (now - last_update >= 1000) {
       last_update = now;
-      ui_update_every_second();
+
+      switch (current_ui) {
+        case ActiveUI::UI1:
+          ui1_update();
+          break;
+        case ActiveUI::UI2:
+          ui2_update();
+          break;
+      }
+    }
+
+    // Elke 100 seconden: UI wisselen
+    if (now - last_switch >= 100000) {
+      last_switch = now;
+
+      // Wissel tussen UI1 en UI2
+      if (current_ui == ActiveUI::UI1) {
+        current_ui = ActiveUI::UI2;
+        ui2_create();
+      } else {
+        current_ui = ActiveUI::UI1;
+        ui1_create();
+      }
     }
 
     vTaskDelay(pdMS_TO_TICKS(5));
   }
 }
+
