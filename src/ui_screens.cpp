@@ -1,93 +1,214 @@
-#include <lvgl.h>
+// ui_screens.cpp
+#include "ui_screens.hpp"
 #include <Arduino.h>
-// ================= UI 1: Laadcurve + 3 som-labels =================
+#include <lvgl.h>
 
-static lv_obj_t* ui1_chart = nullptr;
-static lv_chart_series_t* ui1_series = nullptr;
-static lv_obj_t* ui1_label_a = nullptr;
-static lv_obj_t* ui1_label_b = nullptr;
-static lv_obj_t* ui1_label_total = nullptr;
+// ---------- UI1: Emulate / laadcurve-scherm ----------
 
-static float ui1_sum_a = 0.0f;
-static float ui1_sum_b = 0.0f;
-static int   ui1_chart_x = 0;
+// pointers bewaren voor later gebruik / updates
+static lv_obj_t* ui1_chart             = nullptr;
+static lv_chart_series_t* ui1_series   = nullptr;
+
+// beneden labels
+static lv_obj_t* ui1_label_meas_title  = nullptr;
+static lv_obj_t* ui1_label_v_meas      = nullptr;
+static lv_obj_t* ui1_label_i_meas      = nullptr;
+
+static lv_obj_t* ui1_label_curve_title = nullptr;
+static lv_obj_t* ui1_label_runtime     = nullptr;
+static lv_obj_t* ui1_label_capacity    = nullptr;
+static lv_obj_t* ui1_label_state       = nullptr;
+
+// rechter kolom “knoppen”
+static lv_obj_t* ui1_btn_choose_curve  = nullptr;
+static lv_obj_t* ui1_btn_choose_setp   = nullptr;
+static lv_obj_t* ui1_btn_nominal_v     = nullptr;
+static lv_obj_t* ui1_btn_capacity      = nullptr;
+static lv_obj_t* ui1_btn_reset         = nullptr;
+
+// horizontale stippellijn in de grafiek
+static lv_obj_t* ui1_progress_line     = nullptr;
+static lv_point_precise_t ui1_progress_pts[2];
 
 void ui1_create() {
-  lv_obj_t* scr = lv_screen_active();
-  lv_obj_clean(scr);
+    lv_obj_t* scr = lv_screen_active();
+    lv_obj_clean(scr);
 
-  // Achtergrond zwart
-  lv_obj_set_style_bg_color(scr, lv_color_hex(0x000000), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
+    // -------- achtergrond / hoofdvlak --------
+    lv_obj_set_style_bg_color(scr, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
 
-  // Chart
-  ui1_chart = lv_chart_create(scr);
-  lv_obj_set_size(ui1_chart, 440, 180);
-  lv_obj_align(ui1_chart, LV_ALIGN_TOP_MID, 0, 10);
+    // Titel bovenaan
+    lv_obj_t* title = lv_label_create(scr);
+    lv_label_set_text(title, "Emulate");
+    lv_obj_set_style_text_color(title, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 5);
 
-  lv_chart_set_type(ui1_chart, LV_CHART_TYPE_LINE);
-  lv_chart_set_range(ui1_chart, LV_CHART_AXIS_PRIMARY_Y, 0, 100);
-  lv_chart_set_point_count(ui1_chart, 50);
+    // -------- linker inhoudsgebied (grafiek + info) --------
+    // Rectangle voor de grafiek
+    const int left_margin   = 30;
+    const int top_margin    = 25;
+    const int graph_width   = 310;
+    const int graph_height  = 180;
 
-  lv_obj_set_style_bg_color(ui1_chart, lv_color_hex(0x101010), LV_PART_MAIN);
-  lv_obj_set_style_border_color(ui1_chart, lv_color_hex(0x404040), LV_PART_MAIN);
-  lv_obj_set_style_border_width(ui1_chart, 1, LV_PART_MAIN);
+    ui1_chart = lv_chart_create(scr);
+    lv_obj_set_size(ui1_chart, graph_width, graph_height);
+    lv_obj_align(ui1_chart, LV_ALIGN_TOP_LEFT, left_margin, top_margin);
 
-  ui1_series = lv_chart_add_series(ui1_chart,
-                                   lv_color_hex(0x00FF00),
-                                   LV_CHART_AXIS_PRIMARY_Y);
+    // GEEN scrollbars, niet scrollable
+    lv_obj_clear_flag(ui1_chart, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollbar_mode(ui1_chart, LV_SCROLLBAR_MODE_OFF);
 
-  for (int i = 0; i < 50; i++) {
-    lv_chart_set_value_by_id(ui1_chart, ui1_series, i, 0);
-  }
+    lv_chart_set_type(ui1_chart, LV_CHART_TYPE_LINE);
+    lv_chart_set_range(ui1_chart, LV_CHART_AXIS_PRIMARY_Y, 0, 100);
+    lv_chart_set_point_count(ui1_chart, 32);
 
-  // Labels onderaan
-  ui1_label_a = lv_label_create(scr);
-  ui1_label_b = lv_label_create(scr);
-  ui1_label_total = lv_label_create(scr);
+    lv_obj_set_style_bg_color(ui1_chart, lv_color_hex(0x101010), LV_PART_MAIN);
+    lv_obj_set_style_border_color(ui1_chart, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+    lv_obj_set_style_border_width(ui1_chart, 1, LV_PART_MAIN);
 
-  lv_obj_align(ui1_label_a, LV_ALIGN_BOTTOM_LEFT, 20, -60);
-  lv_obj_align(ui1_label_b, LV_ALIGN_BOTTOM_LEFT, 20, -35);
-  lv_obj_align(ui1_label_total, LV_ALIGN_BOTTOM_LEFT, 20, -10);
+    // Discharge-curve dummy data (alleen voor look & feel)
+    ui1_series = lv_chart_add_series(ui1_chart,
+                                    lv_color_hex(0xFF0000),
+                                    LV_CHART_AXIS_PRIMARY_Y);
 
-  lv_obj_set_style_text_color(ui1_label_a, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_set_style_text_color(ui1_label_b, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_set_style_text_color(ui1_label_total, lv_color_hex(0xFFFFFF), 0);
+    static const int16_t curve_vals[32] = {
+        98,95,93,92,91,90,89,88,
+        87,86,84,82,80,78,75,72,
+        70,67,63,58,52,45,38,30,
+        25,20,15,10,7,5,3,0
+    };
+    for (int i = 0; i < 32; ++i) {
+        lv_chart_set_value_by_id(ui1_chart, ui1_series, i, curve_vals[i]);
+    }
+    lv_chart_refresh(ui1_chart);
 
-  lv_label_set_text(ui1_label_a, "Som A : 0.0");
-  lv_label_set_text(ui1_label_b, "Som B : 0.0");
-  lv_label_set_text(ui1_label_total, "Totaal: 0.0");
+    // Horizontale stippellijn (positie midden in de chart, puur visueel)
+    ui1_progress_line = lv_line_create(ui1_chart);
+    ui1_progress_pts[0].x = 5;
+    ui1_progress_pts[0].y = graph_height / 2;
+    ui1_progress_pts[1].x = graph_width - 5;
+    ui1_progress_pts[1].y = graph_height / 2;
+    lv_line_set_points(ui1_progress_line, ui1_progress_pts, 2);
+    lv_obj_set_style_line_color(ui1_progress_line, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_line_width(ui1_progress_line, 2, 0);
+    lv_obj_set_style_line_dash_width(ui1_progress_line, 6, 0);
+    lv_obj_set_style_line_dash_gap(ui1_progress_line, 4, 0);
 
-  // Startwaardes resetten
-  ui1_sum_a = 0.0f;
-  ui1_sum_b = 0.0f;
-  ui1_chart_x = 0;
+    // As-labels
+    lv_obj_t* lbl_x = lv_label_create(scr);
+    lv_label_set_text(lbl_x, "Capacity ->");
+    lv_obj_set_style_text_color(lbl_x, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_align(lbl_x, LV_ALIGN_TOP_LEFT, left_margin + 50, top_margin + graph_height + 5);
+
+    lv_obj_t* lbl_y = lv_label_create(scr);
+    lv_label_set_text(lbl_y, "Voltage ->");
+    lv_obj_set_style_text_color(lbl_y, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_align(lbl_y, LV_ALIGN_TOP_LEFT, left_margin - 20, top_margin + graph_height/2 + 30);
+    lv_obj_set_style_transform_angle(lbl_y, 2700, 0); // 90 graden roteren
+
+    // -------- onderbalk: meetwaarden en curve-info --------
+    const int bottom_y = top_margin + graph_height + 35;
+
+    // Measurements block (links)
+    ui1_label_meas_title = lv_label_create(scr);
+    lv_label_set_text(ui1_label_meas_title, "Measurements:");
+    lv_obj_set_style_text_color(ui1_label_meas_title, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_align(ui1_label_meas_title, LV_ALIGN_TOP_LEFT, left_margin, bottom_y - 8);
+
+    ui1_label_v_meas = lv_label_create(scr);
+    lv_label_set_text(ui1_label_v_meas, "Voltage = 0.00 V");
+    lv_obj_set_style_text_color(ui1_label_v_meas, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_align_to(ui1_label_v_meas, ui1_label_meas_title, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+
+    ui1_label_i_meas = lv_label_create(scr);
+    lv_label_set_text(ui1_label_i_meas, "Ampere = 0.00 A");
+    lv_obj_set_style_text_color(ui1_label_i_meas, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_align_to(ui1_label_i_meas, ui1_label_v_meas, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+
+    // Curve-info block (rechts van measurements)
+    ui1_label_curve_title = lv_label_create(scr);
+    lv_label_set_text(ui1_label_curve_title, "Curve:");
+    lv_obj_set_style_text_color(ui1_label_curve_title, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_align(ui1_label_curve_title, LV_ALIGN_TOP_LEFT, left_margin + 150, bottom_y - 8);
+
+    ui1_label_runtime = lv_label_create(scr);
+    lv_label_set_text(ui1_label_runtime, "Run-time = 00:00");
+    lv_obj_set_style_text_color(ui1_label_runtime, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_align_to(ui1_label_runtime, ui1_label_curve_title, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+
+    ui1_label_capacity = lv_label_create(scr);
+    lv_label_set_text(ui1_label_capacity, "Capacity = 0.00 F");
+    lv_obj_set_style_text_color(ui1_label_capacity, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_align_to(ui1_label_capacity, ui1_label_runtime, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+
+    ui1_label_state = lv_label_create(scr);
+    lv_label_set_text(ui1_label_state, "Current state = load/unload");
+    lv_obj_set_style_text_color(ui1_label_state, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_align_to(ui1_label_state, ui1_label_capacity, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+
+    // -------- rechter kolom: 5 “knop”-blokken --------
+    lv_obj_t* sidebar = lv_obj_create(scr);
+    lv_obj_set_size(sidebar, 120, 300);
+    lv_obj_align(sidebar, LV_ALIGN_RIGHT_MID, -5, 5);
+    lv_obj_set_style_bg_color(sidebar, lv_color_hex(0x101010), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(sidebar, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_color(sidebar, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+    lv_obj_set_style_border_width(sidebar, 1, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(sidebar, 4, LV_PART_MAIN);
+    lv_obj_set_style_pad_gap(sidebar, 4, LV_PART_MAIN);
+    lv_obj_set_flex_flow(sidebar, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(sidebar,
+                            LV_FLEX_ALIGN_START,
+                            LV_FLEX_ALIGN_CENTER,
+                            LV_FLEX_ALIGN_CENTER);
+
+
+    // GEEN scrollbars, niet scrollable
+    lv_obj_clear_flag(sidebar, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollbar_mode(sidebar, LV_SCROLLBAR_MODE_OFF);
+
+    auto make_btn = [&](const char* txt) -> lv_obj_t* {
+        lv_obj_t* btn = lv_btn_create(sidebar);
+
+        // Alleen breedte forceren, hoogte laat je door flex regelen
+        lv_obj_set_width(btn, LV_PCT(100));
+        lv_obj_set_height(btn, LV_SIZE_CONTENT);  // minimale hoogte = content
+
+        // Laat flex de knoppen de resterende hoogte verdelen
+        lv_obj_set_flex_grow(btn, 1);
+
+        lv_obj_set_style_radius(btn, 0, LV_PART_MAIN);
+        lv_obj_set_style_bg_color(btn, lv_color_hex(0x303030), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN);
+
+        // Knoppen zelf hoeven ook niet scrollable te zijn
+        lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_scrollbar_mode(btn, LV_SCROLLBAR_MODE_OFF);
+
+        lv_obj_t* l = lv_label_create(btn);
+        lv_label_set_text(l, txt);
+        lv_obj_center(l);
+
+        lv_obj_set_style_text_font(l, &lv_font_montserrat_12, LV_PART_MAIN);
+        lv_obj_set_style_text_color(l, lv_color_hex(0xFFFFFF), 0);
+
+        return btn;
+    };
+
+
+    ui1_btn_choose_curve = make_btn("Choose Curve");
+    ui1_btn_choose_setp  = make_btn("Choose Setpoint");
+    ui1_btn_nominal_v    = make_btn("Nominal voltage:\n       0.00 V");
+    ui1_btn_capacity     = make_btn("Capacity\n0.00 F");
+    ui1_btn_reset        = make_btn("Reset");
 }
 
 void ui1_update() {
-  ui1_sum_a += 1.2f;
-  ui1_sum_b += 0.8f;
-  float total = ui1_sum_a + ui1_sum_b;
-
-  char buf[32];
-
-  snprintf(buf, sizeof(buf), "Som A : %.1f", ui1_sum_a);
-  lv_label_set_text(ui1_label_a, buf);
-
-  snprintf(buf, sizeof(buf), "Som B : %.1f", ui1_sum_b);
-  lv_label_set_text(ui1_label_b, buf);
-
-  snprintf(buf, sizeof(buf), "Totaal: %.1f", total);
-  lv_label_set_text(ui1_label_total, buf);
-
-  lv_chart_set_value_by_id(ui1_chart, ui1_series, ui1_chart_x, (int)(total));
-  ui1_chart_x++;
-  if (ui1_chart_x >= 50) {
-    ui1_chart_x = 0;
-  }
-
-  lv_chart_refresh(ui1_chart);
+  // Nog geen dynamische logica: alleen layout/ontwerp.
+  // Later kun je hier meetwaarden & curve-state invullen.
 }
+
 
 
 // ================= UI 2: Simpel dashboard / testscreen =================
