@@ -122,7 +122,7 @@ void ui1_create()
     lv_label_set_text(lbl_y, "Voltage ->");
     lv_obj_set_style_text_color(lbl_y, lv_color_hex(UI_COL_AXIS_TEXT), 0);
     lv_obj_align(lbl_y, LV_ALIGN_TOP_LEFT, left_margin - 20, top_margin + graph_height / 2 + 30);
-    lv_obj_set_style_transform_angle(lbl_y, 2700, 0); // 90 graden roteren
+    lv_obj_set_style_transform_angle(lbl_y, 2700, 0); // 270 graden roteren
 
     // -------- onderbalk: meetwaarden en curve-info --------
     const int bottom_y = top_margin + graph_height + 35;
