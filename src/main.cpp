@@ -3,190 +3,220 @@
 #include <Adafruit_AW9523.h>
 #include <lvgl.h>
 #include "ili9488_driver.hpp"
+#include "display_thread.hpp"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
-// ---------------- BACKLIGHT ----------------
-Adafruit_AW9523 aw;
-constexpr uint8_t BL_PINS[] = {0, 1, 2, 3, 4, 5};
 
-static lv_display_t* disp = nullptr;
+// // ---------------- BACKLIGHT ----------------
+// Adafruit_AW9523 aw;
+// constexpr uint8_t BL_PINS[] = {0, 1, 2, 3, 4, 5};
 
-// UI-objecten voor de laadcurve + "tabel"
-static lv_obj_t* chart = nullptr;
-static lv_chart_series_t* series = nullptr;
-static lv_obj_t* label_a = nullptr;
-static lv_obj_t* label_b = nullptr;
-static lv_obj_t* label_total = nullptr;
+// static lv_display_t* disp = nullptr;
 
-// Dummy waarden
-static float sum_a = 0.0f;
-static float sum_b = 0.0f;
-static int   chart_x = 0;
+// // UI-objecten voor de laadcurve + "tabel"
+// static lv_obj_t* chart = nullptr;
+// static lv_chart_series_t* series = nullptr;
+// static lv_obj_t* label_a = nullptr;
+// static lv_obj_t* label_b = nullptr;
+// static lv_obj_t* label_total = nullptr;
 
-// ---------------- BACKLIGHT INIT ----------------
-void backlight_init_and_on() {
-  Wire.begin(21, 19);
-  if (!aw.begin(0x58)) {
-    Serial.println("AW9523 niet gevonden!");
-    return;
-  }
-  Serial.println("AW9523 OK, backlight aan");
-  for (auto p : BL_PINS) {
-    aw.pinMode(p, AW9523_LED_MODE);
-    aw.analogWrite(p, 255);
-  }
-}
+// // Dummy waarden
+// static float sum_a = 0.0f;
+// static float sum_b = 0.0f;
+// static int   chart_x = 0;
 
-// ---------------- LVGL / DISPLAY KOPPELING ----------------
-void lvgl_port_init() {
-  // Logische resolutie in landscape
-  uint16_t hor_res = 480;
-  uint16_t ver_res = 320;
+// // ---------------- BACKLIGHT INIT ----------------
+// void backlight_init_and_on() {
+//   Wire.begin(21, 19);
+//   if (!aw.begin(0x58)) {
+//     Serial.println("AW9523 niet gevonden!");
+//     return;
+//   }
+//   Serial.println("AW9523 OK, backlight aan");
+//   for (auto p : BL_PINS) {
+//     aw.pinMode(p, AW9523_LED_MODE);
+//     aw.analogWrite(p, 255);
+//   }
+// }
 
-  disp = lv_display_create(hor_res, ver_res);
-  lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565);
+// // ---------------- LVGL / DISPLAY KOPPELING ----------------
+// void lvgl_port_init() {
+//   // Logische resolutie in landscape
+//   uint16_t hor_res = 480;
+//   uint16_t ver_res = 320;
 
-  // Draw-buffers (double buffering, 10 lijnen hoog)
-  static const uint16_t DRAW_BUF_LINES = 10;
-  static lv_color_t buf1[320 * DRAW_BUF_LINES];
-  static lv_color_t buf2[320 * DRAW_BUF_LINES];
+//   disp = lv_display_create(hor_res, ver_res);
+//   lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565);
 
-  lv_display_set_buffers(disp,
-                         buf1,
-                         buf2,
-                         sizeof(buf1),
-                         LV_DISPLAY_RENDER_MODE_PARTIAL);
+//   // Draw-buffers (double buffering, 10 lijnen hoog)
+//   static const uint16_t DRAW_BUF_LINES = 10;
+//   static lv_color_t buf1[320 * DRAW_BUF_LINES];
+//   static lv_color_t buf2[320 * DRAW_BUF_LINES];
 
-  // Flush callback: LVGL -> ILI9488
-  lv_display_set_flush_cb(disp,
-    [](lv_display_t* d, const lv_area_t* area, uint8_t* px_map) {
-      uint16_t x = area->x1;
-      uint16_t y = area->y1;
-      uint16_t w = lv_area_get_width(area);
-      uint16_t h = lv_area_get_height(area);
+//   lv_display_set_buffers(disp,
+//                          buf1,
+//                          buf2,
+//                          sizeof(buf1),
+//                          LV_DISPLAY_RENDER_MODE_PARTIAL);
 
-      ili9488_push_pixels(x, y, w, h, px_map);
+//   // Flush callback: LVGL -> ILI9488
+//   lv_display_set_flush_cb(disp,
+//     [](lv_display_t* d, const lv_area_t* area, uint8_t* px_map) {
+//       uint16_t x = area->x1;
+//       uint16_t y = area->y1;
+//       uint16_t w = lv_area_get_width(area);
+//       uint16_t h = lv_area_get_height(area);
 
-      lv_display_flush_ready(d);
-    }
-  );
+//       ili9488_push_pixels(x, y, w, h, px_map);
 
-  lv_display_set_default(disp);
-}
+//       lv_display_flush_ready(d);
+//     }
+//   );
 
-// ---------------- UI OPBOUW ----------------
-void ui_create() {
-  lv_obj_t* scr = lv_screen_active();
-  lv_obj_clean(scr);
+//   lv_display_set_default(disp);
+// }
 
-  // Achtergrond zwart
-  lv_obj_set_style_bg_color(scr, lv_color_hex(0x000000), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
+// // ---------------- UI OPBOUW ----------------
+// void ui_create() {
+//   lv_obj_t* scr = lv_screen_active();
+//   lv_obj_clean(scr);
 
-  // --- CHART (laadcurve) ---
-  chart = lv_chart_create(scr);
-  lv_obj_set_size(chart, 440, 180);
-  lv_obj_align(chart, LV_ALIGN_TOP_MID, 0, 10);
+//   // Achtergrond zwart
+//   lv_obj_set_style_bg_color(scr, lv_color_hex(0x000000), LV_PART_MAIN);
+//   lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
 
-  lv_chart_set_type(chart, LV_CHART_TYPE_LINE);
-  lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_Y, 0, 100);
-  lv_chart_set_point_count(chart, 50);
+//   // --- CHART (laadcurve) ---
+//   chart = lv_chart_create(scr);
+//   lv_obj_set_size(chart, 440, 180);
+//   lv_obj_align(chart, LV_ALIGN_TOP_MID, 0, 10);
 
-  // Styling
-  lv_obj_set_style_bg_color(chart, lv_color_hex(0x101010), LV_PART_MAIN);
-  lv_obj_set_style_border_color(chart, lv_color_hex(0x404040), LV_PART_MAIN);
-  lv_obj_set_style_border_width(chart, 1, LV_PART_MAIN);
+//   lv_chart_set_type(chart, LV_CHART_TYPE_LINE);
+//   lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_Y, 0, 100);
+//   lv_chart_set_point_count(chart, 50);
 
-  // Serie (groene lijn)
-  series = lv_chart_add_series(chart,
-                               lv_color_hex(0x00FF00),
-                               LV_CHART_AXIS_PRIMARY_Y);
+//   // Styling
+//   lv_obj_set_style_bg_color(chart, lv_color_hex(0x101010), LV_PART_MAIN);
+//   lv_obj_set_style_border_color(chart, lv_color_hex(0x404040), LV_PART_MAIN);
+//   lv_obj_set_style_border_width(chart, 1, LV_PART_MAIN);
 
-  for (int i = 0; i < 50; i++) {
-    lv_chart_set_value_by_id(chart, series, i, 0);
-  }
+//   // Serie (groene lijn)
+//   series = lv_chart_add_series(chart,
+//                                lv_color_hex(0x00FF00),
+//                                LV_CHART_AXIS_PRIMARY_Y);
 
-  // --- LABELS ("tabel" met optellende waardes) ---
-  label_a = lv_label_create(scr);
-  label_b = lv_label_create(scr);
-  label_total = lv_label_create(scr);
+//   for (int i = 0; i < 50; i++) {
+//     lv_chart_set_value_by_id(chart, series, i, 0);
+//   }
 
-  lv_obj_align(label_a, LV_ALIGN_BOTTOM_LEFT, 20, -60);
-  lv_obj_align(label_b, LV_ALIGN_BOTTOM_LEFT, 20, -35);
-  lv_obj_align(label_total, LV_ALIGN_BOTTOM_LEFT, 20, -10);
+//   // --- LABELS ("tabel" met optellende waardes) ---
+//   label_a = lv_label_create(scr);
+//   label_b = lv_label_create(scr);
+//   label_total = lv_label_create(scr);
 
-  lv_obj_set_style_text_color(label_a, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_set_style_text_color(label_b, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_set_style_text_color(label_total, lv_color_hex(0xFFFFFF), 0);
+//   lv_obj_align(label_a, LV_ALIGN_BOTTOM_LEFT, 20, -60);
+//   lv_obj_align(label_b, LV_ALIGN_BOTTOM_LEFT, 20, -35);
+//   lv_obj_align(label_total, LV_ALIGN_BOTTOM_LEFT, 20, -10);
 
-  lv_label_set_text(label_a, "Som A : 0.0");
-  lv_label_set_text(label_b, "Som B : 0.0");
-  lv_label_set_text(label_total, "Totaal: 0.0");
-}
+//   lv_obj_set_style_text_color(label_a, lv_color_hex(0xFFFFFF), 0);
+//   lv_obj_set_style_text_color(label_b, lv_color_hex(0xFFFFFF), 0);
+//   lv_obj_set_style_text_color(label_total, lv_color_hex(0xFFFFFF), 0);
 
-// ---------------- PERIODIEKE UPDATE ----------------
-void ui_update_every_second() {
-  // Dummy data laten oplopen
-  sum_a += 1.2f;
-  sum_b += 0.8f;
-  float total = sum_a + sum_b;
+//   lv_label_set_text(label_a, "Som A : 0.0");
+//   lv_label_set_text(label_b, "Som B : 0.0");
+//   lv_label_set_text(label_total, "Totaal: 0.0");
+// }
 
-  // Labels updaten
-  char buf[32];
+// // ---------------- PERIODIEKE UPDATE ----------------
+// void ui_update_every_second() {
+//   // Dummy data laten oplopen
+//   sum_a += 1.2f;
+//   sum_b += 0.8f;
+//   float total = sum_a + sum_b;
 
-  snprintf(buf, sizeof(buf), "Som A : %.1f", sum_a);
-  lv_label_set_text(label_a, buf);
+//   // Labels updaten
+//   char buf[32];
 
-  snprintf(buf, sizeof(buf), "Som B : %.1f", sum_b);
-  lv_label_set_text(label_b, buf);
+//   snprintf(buf, sizeof(buf), "Som A : %.1f", sum_a);
+//   lv_label_set_text(label_a, buf);
 
-  snprintf(buf, sizeof(buf), "Totaal: %.1f", total);
-  lv_label_set_text(label_total, buf);
+//   snprintf(buf, sizeof(buf), "Som B : %.1f", sum_b);
+//   lv_label_set_text(label_b, buf);
 
-  // Chart updaten: total als "laadcurve"
-  lv_chart_set_value_by_id(chart, series, chart_x, (int)(total));
-  chart_x++;
-  if (chart_x >= 50) {
-    chart_x = 0;
-  }
+//   snprintf(buf, sizeof(buf), "Totaal: %.1f", total);
+//   lv_label_set_text(label_total, buf);
 
-  lv_chart_refresh(chart);
-}
+//   // Chart updaten: total als "laadcurve"
+//   lv_chart_set_value_by_id(chart, series, chart_x, (int)(total));
+//   chart_x++;
+//   if (chart_x >= 50) {
+//     chart_x = 0;
+//   }
 
-// ---------------- SETUP ----------------
+//   lv_chart_refresh(chart);
+// }
+
+// // ---------------- SETUP ----------------
+// void setup() {
+//   Serial.begin(115200);
+//   delay(500);
+//   Serial.println("LVGL + ILI9488 driver test (laadcurve + tabel)");
+
+//   backlight_init_and_on();
+
+//   // Display init (met kleuren + landscape via MADCTL in ili9488_init)
+//   ili9488_init();
+
+//   // Eventueel eerst even zwart vullen
+//   ili9488_fill_screen(0x0000);
+
+//   // LVGL init
+//   lv_init();
+//   lvgl_port_init();
+
+//   // UI opbouwen
+//   ui_create();
+// }
+
+// // ---------------- LOOP ----------------
+// void loop() {
+//   // Tijd doorgeven aan LVGL
+//   lv_tick_inc(5);
+//   lv_timer_handler();
+
+//   static uint32_t last_update = 0;
+//   uint32_t now = millis();
+//   if (now - last_update > 1000) {
+//     last_update = now;
+//     // Elke seconde: waardes + grafiek updaten
+//     ui_update_every_second();
+//   }
+
+//   delay(5);
+// }
+
+
+// Alle FreeRTOS task-creatie gebeurt hier in main.cpp
+
 void setup() {
   Serial.begin(115200);
   delay(500);
-  Serial.println("LVGL + ILI9488 driver test (laadcurve + tabel)");
+  Serial.println("Main setup: start display task");
 
-  backlight_init_and_on();
-
-  // Display init (met kleuren + landscape via MADCTL in ili9488_init)
-  ili9488_init();
-
-  // Eventueel eerst even zwart vullen
-  ili9488_fill_screen(0x0000);
-
-  // LVGL init
-  lv_init();
-  lvgl_port_init();
-
-  // UI opbouwen
-  ui_create();
+  // Display-task starten op core 1 (kan ook 0 zijn)
+  xTaskCreatePinnedToCore(
+    display_task,          // task-functie
+    "DisplayTask",         // naam
+    8192,                  // stack depth (words, 8192 is ruim voor LVGL)
+    nullptr,               // geen parameter
+    1,                     // prioriteit (iets boven idle, lager dan zware taken)
+    nullptr,               // geen task-handle nodig
+    1                      // core-ID (0 of 1, S3 is dual-core)
+  );
 }
 
-// ---------------- LOOP ----------------
 void loop() {
-  // Tijd doorgeven aan LVGL
-  lv_tick_inc(5);
-  lv_timer_handler();
-
-  static uint32_t last_update = 0;
-  uint32_t now = millis();
-  if (now - last_update > 1000) {
-    last_update = now;
-    // Elke seconde: waardes + grafiek updaten
-    ui_update_every_second();
-  }
-
-  delay(5);
+  // Hoofd-loop doet hier niks voor de display.
+  // Later kun je hier andere dingen doen, of hem gewoon laten idlen.
+  delay(1000);
 }
