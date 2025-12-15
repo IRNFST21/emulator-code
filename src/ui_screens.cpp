@@ -345,37 +345,368 @@ void ui1_update() {
   }
 }
 
-// ================= UI 2: Simpel dashboard / testscreen =================
+// ================= UI 2: Constant source (gauge) =================
 
-static lv_obj_t* ui2_label_title   = nullptr;
-static lv_obj_t* ui2_label_counter = nullptr;
-static int       ui2_counter       = 0;
+// UI2 object pointers
+static lv_obj_t* ui2_arc             = nullptr;
+static lv_obj_t* ui2_label_voltage   = nullptr;
+static lv_obj_t* ui2_label_ampere    = nullptr;
 
-void ui2_create() {
-  lv_obj_t* scr = lv_screen_active();
-  lv_obj_clean(scr);
+// Buttons + labels inside buttons (als je later wil updaten)
+static lv_obj_t* ui2_btn_voltage       = nullptr;
+static lv_obj_t* ui2_btn_current_limit = nullptr;
+static lv_obj_t* ui2_btn_empty3        = nullptr;
+static lv_obj_t* ui2_btn_empty4        = nullptr;
+static lv_obj_t* ui2_btn_reset         = nullptr;
 
-  // Donkere achtergrond
-  lv_obj_set_style_bg_color(scr, lv_color_hex(UI_COL_UI2_BG), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
+// Dummy “instellingen/meting”
+static float ui2_set_voltage = 0.0f;   // “ingestelde” voltage
+static float ui2_meas_ampere = 0.0f;   // “gemeten” ampere
+static float ui2_dir         = 1.0f;   // op/af
+static const float UI2_VMAX  = 20.0f;  // 100% schaal (mag alles zijn)
 
-  ui2_label_title = lv_label_create(scr);
-  lv_label_set_text(ui2_label_title, "UI 2 - Dashboard Test");
-  lv_obj_align(ui2_label_title, LV_ALIGN_TOP_MID, 0, 20);
-  lv_obj_set_style_text_color(ui2_label_title, lv_color_hex(UI_COL_UI2_TEXT), 0);
+// helper: maak button met jouw style
+static lv_obj_t* ui2_make_btn(lv_obj_t* parent, const char* txt)
+{
+    lv_obj_t* btn = lv_btn_create(parent);
 
-  ui2_label_counter = lv_label_create(scr);
-  lv_label_set_text(ui2_label_counter, "Counter: 0");
-  lv_obj_align(ui2_label_counter, LV_ALIGN_CENTER, 0, 0);
-  lv_obj_set_style_text_color(ui2_label_counter, lv_color_hex(UI_COL_UI2_TEXT), 0);
+    // breedte 100%, hoogte wordt door flex verdeeld
+    lv_obj_set_width(btn, LV_PCT(100));
+    lv_obj_set_height(btn, LV_SIZE_CONTENT);
+    lv_obj_set_flex_grow(btn, 1);
 
-  ui2_counter = 0;
+    lv_obj_set_style_radius(btn, 0, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_BUTTON_BG), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_color(btn, lv_color_hex(UI_COL_BUTTON_BORDER), LV_PART_MAIN);
+    lv_obj_set_style_border_width(btn, 1, LV_PART_MAIN);
+
+    lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollbar_mode(btn, LV_SCROLLBAR_MODE_OFF);
+
+    lv_obj_t* l = lv_label_create(btn);
+    lv_label_set_text(l, txt);
+    lv_obj_center(l);
+
+    lv_obj_set_style_text_font(l, &lv_font_montserrat_12, LV_PART_MAIN);
+    lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_BUTTON_TEXT), 0);
+
+    return btn;
 }
 
-void ui2_update() {
-  ui2_counter++;
+void ui2_create()
+{
+    lv_obj_t* scr = lv_screen_active();
+    lv_obj_clean(scr);
 
-  char buf[32];
-  snprintf(buf, sizeof(buf), "Counter: %d", ui2_counter);
-  lv_label_set_text(ui2_label_counter, buf);
+    // reset dummy waardes
+    ui2_set_voltage = 0.0f;
+    ui2_meas_ampere = 0.0f;
+    ui2_dir = 1.0f;
+
+    // --- Screen background ---
+    lv_obj_set_style_bg_color(scr, lv_color_hex(UI_COL_BG), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
+
+    // --- Title ---
+    lv_obj_t* title = lv_label_create(scr);
+    lv_label_set_text(title, "constant scource"); // laat je spelling zoals in je ontwerp
+    lv_obj_set_style_text_color(title, lv_color_hex(UI_COL_TEXT), 0);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 5);
+
+    // --- Sidebar rechts (zelfde idee als UI1) ---
+    lv_obj_t* sidebar = lv_obj_create(scr);
+    lv_obj_set_size(sidebar, 120, 300);
+    lv_obj_align(sidebar, LV_ALIGN_RIGHT_MID, -5, 5);
+
+    lv_obj_set_style_bg_color(sidebar, lv_color_hex(UI_COL_SIDEBAR_BG), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(sidebar, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_color(sidebar, lv_color_hex(UI_COL_SIDEBAR_BORDER), LV_PART_MAIN);
+    lv_obj_set_style_border_width(sidebar, 1, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(sidebar, 4, LV_PART_MAIN);
+    lv_obj_set_style_pad_gap(sidebar, 4, LV_PART_MAIN);
+
+    lv_obj_set_flex_flow(sidebar, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(sidebar,
+                          LV_FLEX_ALIGN_START,
+                          LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_START);
+
+    lv_obj_clear_flag(sidebar, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollbar_mode(sidebar, LV_SCROLLBAR_MODE_OFF);
+
+    ui2_btn_voltage       = ui2_make_btn(sidebar, "Voltage");
+    ui2_btn_current_limit = ui2_make_btn(sidebar, "current limit");
+    ui2_btn_empty3        = ui2_make_btn(sidebar, "");       // leeg
+    ui2_btn_empty4        = ui2_make_btn(sidebar, "");       // leeg
+    ui2_btn_reset         = ui2_make_btn(sidebar, "Reset");
+
+    // --- Main content area (links) ---
+    // We maken geen aparte container nodig; we plaatsen direct op scr met offsets
+    // zodat het mooi in het “linker deel” blijft.
+    // (rechter sidebar is 120 breed + marge, dus links ~ 340-350px)
+    const int left_area_center_x = 160; // tuned voor 480x320 met sidebar rechts
+    const int center_y           = 155;
+
+    // --- Arc gauge ---
+    ui2_arc = lv_arc_create(scr);
+    lv_obj_set_size(ui2_arc, 180, 180);
+    lv_obj_align(ui2_arc, LV_ALIGN_CENTER, -60, -5);
+
+    // Arc instellingen: 0..100%
+    lv_arc_set_range(ui2_arc, 0, 100);
+
+    // Full ring zichtbaar (achtergrondring)
+    lv_arc_set_bg_angles(ui2_arc, 0, 360);
+
+    // Start onderaan: rotation op 270 graden (6 o’clock als startpunt)
+    lv_arc_set_rotation(ui2_arc, 270);
+
+    // Stijl: geel op zwart, geen “knob”
+    lv_obj_set_style_arc_width(ui2_arc, 12, LV_PART_MAIN);
+    lv_obj_set_style_arc_color(ui2_arc, lv_color_hex(UI_COL_CHART_BORDER), LV_PART_MAIN);
+
+    lv_obj_set_style_arc_width(ui2_arc, 12, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(ui2_arc, lv_color_hex(UI_COL_CHART_SERIES), LV_PART_INDICATOR);
+
+    // Background ring (vaste 360°)
+    lv_obj_set_style_arc_width(ui2_arc, 12, LV_PART_MAIN);
+    lv_obj_set_style_arc_color(ui2_arc,
+                            lv_color_hex(0x5A5400), // donker geel / olijf
+                            LV_PART_MAIN);
+
+    // Indicator ring (bewegend deel)
+    lv_obj_set_style_arc_width(ui2_arc, 12, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(ui2_arc,
+                            lv_color_hex(UI_COL_CHART_SERIES), // helder geel
+                            LV_PART_INDICATOR);
+
+
+    // Knob verbergen
+    lv_obj_set_style_opa(ui2_arc, LV_OPA_TRANSP, LV_PART_KNOB);
+
+    // Geen input / scroll
+    lv_obj_clear_flag(ui2_arc, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(ui2_arc, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollbar_mode(ui2_arc, LV_SCROLLBAR_MODE_OFF);
+
+    // Startwaarde 0%
+    lv_arc_set_value(ui2_arc, 0);
+
+    // --- Voltage label IN de cirkel ---
+    ui2_label_voltage = lv_label_create(scr);
+    lv_obj_set_style_text_color(ui2_label_voltage, lv_color_hex(UI_COL_TEXT), 0);
+    lv_label_set_text(ui2_label_voltage, "Voltage:\n0.00");
+    lv_obj_align_to(ui2_label_voltage, ui2_arc, LV_ALIGN_CENTER, 0, 0);
+
+    // --- Ampere label onder de cirkel ---
+    ui2_label_ampere = lv_label_create(scr);
+    lv_obj_set_style_text_color(ui2_label_ampere, lv_color_hex(UI_COL_TEXT), 0);
+    lv_label_set_text(ui2_label_ampere, "Ampere:\n0.00");
+    lv_obj_align_to(ui2_label_ampere, ui2_arc, LV_ALIGN_OUT_BOTTOM_MID, 0, 20);
+}
+
+void ui2_update()
+{
+    // Dummy dynamiek:
+    // - voltage loopt op/af tussen 0 en UI2_VMAX
+    // - ampere beweegt mee (willekeurig-ogend maar simpel)
+    ui2_set_voltage += 0.4f * ui2_dir;
+    if (ui2_set_voltage >= UI2_VMAX) { ui2_set_voltage = UI2_VMAX; ui2_dir = -1.0f; }
+    if (ui2_set_voltage <= 0.0f)    { ui2_set_voltage = 0.0f;    ui2_dir =  1.0f; }
+
+    // Ampere “meetwaarde”
+    ui2_meas_ampere = 0.2f + (ui2_set_voltage / UI2_VMAX) * 1.8f; // 0.2..2.0A
+
+    // percentage voor de ring (0..100)
+    int pct = (int)((ui2_set_voltage / UI2_VMAX) * 100.0f + 0.5f);
+    if (pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
+
+    if (ui2_arc) {
+        lv_arc_set_value(ui2_arc, pct);
+    }
+
+    // Labels updaten
+    if (ui2_label_voltage) {
+        char b[32];
+        snprintf(b, sizeof(b), "Voltage:\n%.2f", ui2_set_voltage);
+        lv_label_set_text(ui2_label_voltage, b);
+    }
+
+    if (ui2_label_ampere) {
+        char b[32];
+        snprintf(b, sizeof(b), "Ampere:\n%.2f", ui2_meas_ampere);
+        lv_label_set_text(ui2_label_ampere, b);
+    }
+}
+
+
+// ================= UI 3: Constant sink (gauge) =================
+
+// UI3 object pointers
+static lv_obj_t* ui3_arc             = nullptr;
+static lv_obj_t* ui3_label_ampere    = nullptr;  // in de cirkel: ingestelde A
+static lv_obj_t* ui3_label_voltage   = nullptr;  // onder de cirkel: gemeten V
+
+// Buttons
+static lv_obj_t* ui3_btn_ampere        = nullptr;
+static lv_obj_t* ui3_btn_vlimit        = nullptr;
+static lv_obj_t* ui3_btn_empty3        = nullptr;
+static lv_obj_t* ui3_btn_empty4        = nullptr;
+static lv_obj_t* ui3_btn_reset         = nullptr;
+
+// Dummy “instellingen/meting”
+static float ui3_set_ampere   = 0.0f;   // ingestelde stroom (sink)
+static float ui3_meas_voltage = 0.0f;   // gemeten spanning
+static float ui3_dir          = 1.0f;   // op/af
+static const float UI3_IMAX   = 5.0f;   // 100% schaal (bijv. 5A)
+
+// helper: maak button met jouw style (zelfde als UI2/1)
+static lv_obj_t* ui3_make_btn(lv_obj_t* parent, const char* txt)
+{
+    lv_obj_t* btn = lv_btn_create(parent);
+
+    // breedte 100%, hoogte door flex verdeeld
+    lv_obj_set_width(btn, LV_PCT(100));
+    lv_obj_set_height(btn, LV_SIZE_CONTENT);
+    lv_obj_set_flex_grow(btn, 1);
+
+    lv_obj_set_style_radius(btn, 0, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_BUTTON_BG), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_color(btn, lv_color_hex(UI_COL_BUTTON_BORDER), LV_PART_MAIN);
+    lv_obj_set_style_border_width(btn, 1, LV_PART_MAIN);
+
+    lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollbar_mode(btn, LV_SCROLLBAR_MODE_OFF);
+
+    lv_obj_t* l = lv_label_create(btn);
+    lv_label_set_text(l, txt);
+    lv_obj_center(l);
+
+    lv_obj_set_style_text_font(l, &lv_font_montserrat_12, LV_PART_MAIN);
+    lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_BUTTON_TEXT), 0);
+
+    return btn;
+}
+
+void ui3_create()
+{
+    lv_obj_t* scr = lv_screen_active();
+    lv_obj_clean(scr);
+
+    // reset dummy waardes
+    ui3_set_ampere = 0.0f;
+    ui3_meas_voltage = 0.0f;
+    ui3_dir = 1.0f;
+
+    // achtergrond
+    lv_obj_set_style_bg_color(scr, lv_color_hex(UI_COL_BG), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
+
+    // titel
+    lv_obj_t* title = lv_label_create(scr);
+    lv_label_set_text(title, "constant sink");
+    lv_obj_set_style_text_color(title, lv_color_hex(UI_COL_TEXT), 0);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 5);
+
+    // sidebar rechts
+    lv_obj_t* sidebar = lv_obj_create(scr);
+    lv_obj_set_size(sidebar, 120, 300);
+    lv_obj_align(sidebar, LV_ALIGN_RIGHT_MID, -5, 5);
+
+    lv_obj_set_style_bg_color(sidebar, lv_color_hex(UI_COL_SIDEBAR_BG), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(sidebar, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_color(sidebar, lv_color_hex(UI_COL_SIDEBAR_BORDER), LV_PART_MAIN);
+    lv_obj_set_style_border_width(sidebar, 1, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(sidebar, 4, LV_PART_MAIN);
+    lv_obj_set_style_pad_gap(sidebar, 4, LV_PART_MAIN);
+
+    lv_obj_set_flex_flow(sidebar, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(sidebar,
+                          LV_FLEX_ALIGN_START,
+                          LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_START);
+
+    lv_obj_clear_flag(sidebar, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollbar_mode(sidebar, LV_SCROLLBAR_MODE_OFF);
+
+    ui3_btn_ampere = ui3_make_btn(sidebar, "Ampere");
+    ui3_btn_vlimit = ui3_make_btn(sidebar, "voltage limit");
+    ui3_btn_empty3 = ui3_make_btn(sidebar, "");
+    ui3_btn_empty4 = ui3_make_btn(sidebar, "");
+    ui3_btn_reset  = ui3_make_btn(sidebar, "Reset");
+
+    // arc + labels links (zelfde plaatsing-aanpak als UI2)
+    ui3_arc = lv_arc_create(scr);
+    lv_obj_set_size(ui3_arc, 180, 180);
+    lv_obj_align(ui3_arc, LV_ALIGN_CENTER, -60, -5);
+
+    // arc instellingen 0..100%
+    lv_arc_set_range(ui3_arc, 0, 100);
+    lv_arc_set_bg_angles(ui3_arc, 0, 360);
+    lv_arc_set_rotation(ui3_arc, 270);
+
+    // background ring (iets donkerder geel), indicator helder geel
+    lv_obj_set_style_arc_width(ui3_arc, 12, LV_PART_MAIN);
+    lv_obj_set_style_arc_color(ui3_arc, lv_color_hex(0x5A5400), LV_PART_MAIN);
+
+    lv_obj_set_style_arc_width(ui3_arc, 12, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(ui3_arc, lv_color_hex(UI_COL_CHART_SERIES), LV_PART_INDICATOR);
+
+    // knob verbergen + geen input
+    lv_obj_set_style_opa(ui3_arc, LV_OPA_TRANSP, LV_PART_KNOB);
+    lv_obj_clear_flag(ui3_arc, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(ui3_arc, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollbar_mode(ui3_arc, LV_SCROLLBAR_MODE_OFF);
+
+    lv_arc_set_value(ui3_arc, 0);
+
+    // label in de cirkel: ingestelde ampere
+    ui3_label_ampere = lv_label_create(scr);
+    lv_obj_set_style_text_color(ui3_label_ampere, lv_color_hex(UI_COL_TEXT), 0);
+    lv_label_set_text(ui3_label_ampere, "Ampere:\n0.00");
+    lv_obj_align_to(ui3_label_ampere, ui3_arc, LV_ALIGN_CENTER, 0, 0);
+
+    // label onder de cirkel: gemeten voltage
+    ui3_label_voltage = lv_label_create(scr);
+    lv_obj_set_style_text_color(ui3_label_voltage, lv_color_hex(UI_COL_TEXT), 0);
+    lv_label_set_text(ui3_label_voltage, "Voltage:\n0.00");
+    lv_obj_align_to(ui3_label_voltage, ui3_arc, LV_ALIGN_OUT_BOTTOM_MID, 0, 20);
+}
+
+void ui3_update()
+{
+    // Dummy dynamiek:
+    // - ingestelde ampere loopt op/af tussen 0..UI3_IMAX
+    ui3_set_ampere += 0.25f * ui3_dir;
+    if (ui3_set_ampere >= UI3_IMAX) { ui3_set_ampere = UI3_IMAX; ui3_dir = -1.0f; }
+    if (ui3_set_ampere <= 0.0f)    { ui3_set_ampere = 0.0f;    ui3_dir =  1.0f; }
+
+    // gemeten voltage “zakt” als je meer stroom trekt (dummy)
+    // (dus high current -> lower voltage)
+    ui3_meas_voltage = 12.0f - (ui3_set_ampere / UI3_IMAX) * 6.0f; // 12V -> 6V
+
+    // ring percentage op basis van ingestelde ampere
+    int pct = (int)((ui3_set_ampere / UI3_IMAX) * 100.0f + 0.5f);
+    if (pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
+
+    if (ui3_arc) {
+        lv_arc_set_value(ui3_arc, pct);
+    }
+
+    // labels updaten
+    if (ui3_label_ampere) {
+        char b[32];
+        snprintf(b, sizeof(b), "Ampere:\n%.2f", ui3_set_ampere);
+        lv_label_set_text(ui3_label_ampere, b);
+    }
+
+    if (ui3_label_voltage) {
+        char b[32];
+        snprintf(b, sizeof(b), "Voltage:\n%.2f", ui3_meas_voltage);
+        lv_label_set_text(ui3_label_voltage, b);
+    }
 }

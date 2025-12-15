@@ -24,9 +24,13 @@ static float sum_a = 0.0f;
 static float sum_b = 0.0f;
 static int   chart_x = 0;
 
+// UI switch interval in ms (adjust for testing/demo)
+constexpr uint32_t UI_SWITCH_INTERVAL_MS = 10000; // 10 seconds for demo; set to 100000 for production
+
 enum class ActiveUI : uint8_t {
   UI1 = 0,
   UI2 = 1,
+  UI3 = 2,
 };
 
 static ActiveUI current_ui = ActiveUI::UI1;
@@ -206,20 +210,23 @@ void display_task(void* pvParameters) {
         case ActiveUI::UI2:
           ui2_update();
           break;
+        case ActiveUI::UI3:
+          ui3_update();  
+          break;
       }
     }
 
-    // Elke 100 seconden: UI wisselen
-    if (now - last_switch >= 100000) {
+    // Elke UI_SWITCH_INTERVAL_MS ms: UI wisselen
+    if (now - last_switch >= UI_SWITCH_INTERVAL_MS) {
       last_switch = now;
 
-      // Wissel tussen UI1 en UI2
-      if (current_ui == ActiveUI::UI1) {
-        current_ui = ActiveUI::UI2;
-        ui2_create();
-      } else {
-        current_ui = ActiveUI::UI1;
-        ui1_create();
+      // Cycle to next UI
+      current_ui = static_cast<ActiveUI>((static_cast<uint8_t>(current_ui) + 1) % 3);
+      
+      switch (current_ui) {
+        case ActiveUI::UI1: ui1_create(); break;
+        case ActiveUI::UI2: ui2_create(); break;
+        case ActiveUI::UI3: ui3_create(); break;
       }
     }
 

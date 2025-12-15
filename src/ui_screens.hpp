@@ -6,6 +6,12 @@
 void ui1_create();
 void ui1_update();
 
+
 // UI 2: simpel dashboard / testscherm
 void ui2_create();
 void ui2_update();
+
+
+// UI 3: (placeholder voor later)
+void ui3_create();
+void ui3_update();
