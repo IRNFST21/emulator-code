@@ -5,7 +5,7 @@
 		"commands" : [],
 		"files" : 
 		[
-			"CMakeLists.txt"
+			"C:/Users/yered/OneDrive/Bureaublad/emulator code/build/_deps/googletest-src/googletest/CMakeLists.txt"
 		],
 		"nodes" : 
 		[
@@ -17,31 +17,22 @@
 	"dependencies" : 
 	[
 		{
-			"id" : "battery_sim_tests::@6890427a1f51a3e7e1df"
-		},
-		{
-			"id" : "gmock::@0f7bb11d64f3678238c7"
-		},
-		{
-			"id" : "gmock_main::@0f7bb11d64f3678238c7"
+			"id" : "ZERO_CHECK::@6890427a1f51a3e7e1df"
 		},
 		{
 			"id" : "gtest::@1ea2dfc0605fe3ab2a3f"
 		},
 		{
 			"id" : "gtest_main::@1ea2dfc0605fe3ab2a3f"
-		},
-		{
-			"id" : "ZERO_CHECK::@6890427a1f51a3e7e1df"
 		}
 	],
-	"id" : "ALL_BUILD::@6890427a1f51a3e7e1df",
+	"id" : "ALL_BUILD::@1ea2dfc0605fe3ab2a3f",
 	"isGeneratorProvided" : true,
 	"name" : "ALL_BUILD",
 	"paths" : 
 	{
-		"build" : ".",
-		"source" : "."
+		"build" : "_deps/googletest-build/googletest",
+		"source" : "C:/Users/yered/OneDrive/Bureaublad/emulator code/build/_deps/googletest-src/googletest"
 	},
 	"sources" : [],
 	"type" : "UTILITY"
