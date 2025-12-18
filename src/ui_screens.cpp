@@ -51,34 +51,15 @@ static lv_obj_t* ui1_lbl_btn_capacity  = nullptr;
 static lv_obj_t* ui1_progress_line     = nullptr;
 static lv_point_precise_t ui1_progress_pts[2];
 
-// dummy curve data (zelfde vorm als je eerder had)
-static const int16_t ui1_curve_vals[32] = {
-    98, 95, 93, 92, 91, 90, 89, 88,
-    87, 86, 84, 82, 80, 78, 75, 72,
-    70, 67, 63, 58, 52, 45, 38, 30,
-    25, 20, 15, 10, 7, 5, 3, 0
-};
-
-// dynamische state voor dummy-animatie
-static float    ui1_voltage_val        = 0.0f;
-static float    ui1_current_val        = 0.0f;
-static float    ui1_capacity_val       = 0.0f;
-static uint32_t ui1_runtime_sec        = 0;
-static bool     ui1_state_load         = true;
-
-static float    ui1_nominal_v_val      = 0.0f;
-static float    ui1_btn_capacity_val   = 0.0f;
-
-static int      ui1_progress_index     = 0;
-static int      ui1_progress_dir       = 1;   // +1 naar rechts, -1 naar links
-
-// helper: verticale lijnpositie updaten op basis van ui1_progress_index
-static void ui1_update_progress_line()
+// helper: verticale lijnpositie updaten op basis van model.ui1.progress_index + curve
+static void ui1_update_progress_line(const DisplayModel& m)
 {
     if (!ui1_chart || !ui1_progress_line) return;
 
-    const int point_count = 32;
-    int idx = ui1_progress_index;
+    const int point_count = m.ui1.curve_len;
+    if (point_count <= 1) return;
+
+    int idx = m.ui1.progress_index;
     if (idx < 0) idx = 0;
     if (idx > point_count - 1) idx = point_count - 1;
 
@@ -90,7 +71,7 @@ static void ui1_update_progress_line()
     int x = (graph_width - 1) * idx / (point_count - 1);
 
     // Waarde (0..100) uit de curve
-    int16_t v = ui1_curve_vals[idx];
+    int16_t v = m.ui1.curve[idx];
 
     // Map waarde naar pixel (0 = boven, graph_height-1 = onder)
     int y_curve = (graph_height - 1) - (graph_height - 1) * v / 100;
@@ -107,17 +88,6 @@ static void ui1_update_progress_line()
 void ui1_create() {
   lv_obj_t* scr = lv_screen_active();
   lv_obj_clean(scr);
-
-  // baseline voor dynamische waardes
-  ui1_voltage_val      = 0.0f;
-  ui1_current_val      = 0.0f;
-  ui1_capacity_val     = 0.0f;
-  ui1_runtime_sec      = 0;
-  ui1_state_load       = true;
-  ui1_nominal_v_val    = 0.0f;
-  ui1_btn_capacity_val = 0.0f;
-  ui1_progress_index   = 0;
-  ui1_progress_dir     = 1;
 
   // -------- achtergrond / hoofdvlak --------
   lv_obj_set_style_bg_color(scr, lv_color_hex(UI_COL_BG), LV_PART_MAIN);
@@ -150,13 +120,13 @@ void ui1_create() {
   lv_obj_set_style_border_color(ui1_chart, lv_color_hex(UI_COL_CHART_BORDER), LV_PART_MAIN);
   lv_obj_set_style_border_width(ui1_chart, 1, LV_PART_MAIN);
 
-  // Discharge-curve dummy data (alleen voor look & feel)
+  // Discharge-curve data (wordt gezet in ui1_update op basis van model)
   ui1_series = lv_chart_add_series(ui1_chart,
                                    lv_color_hex(UI_COL_CHART_SERIES),
                                    LV_CHART_AXIS_PRIMARY_Y);
 
   for (int i = 0; i < 32; ++i) {
-    lv_chart_set_value_by_id(ui1_chart, ui1_series, i, ui1_curve_vals[i]);
+    lv_chart_set_value_by_id(ui1_chart, ui1_series, i, 0);
   }
   lv_chart_refresh(ui1_chart);
 
@@ -166,7 +136,6 @@ void ui1_create() {
   lv_obj_set_style_line_width(ui1_progress_line, 2, 0);
   lv_obj_set_style_line_dash_width(ui1_progress_line, 6, 0);
   lv_obj_set_style_line_dash_gap(ui1_progress_line, 4, 0);
-  ui1_update_progress_line(); // init
 
   // As-labels
   lv_obj_t* lbl_x = lv_label_create(scr);
@@ -281,66 +250,52 @@ void ui1_create() {
   }
 }
 
-void ui1_update() {
+void ui1_update(const DisplayModel& m) {
   char buf[64];
 
-  // ---- Measurements: voltage & ampere optellen ----
-  ui1_voltage_val += 0.05f;
-  if (ui1_voltage_val > 5.0f) ui1_voltage_val = 0.0f;
+  // ---- curve in chart ----
+  if (ui1_chart && ui1_series) {
+    const int n = (m.ui1.curve_len > 32) ? 32 : m.ui1.curve_len;
+    for (int i = 0; i < n; ++i) {
+      lv_chart_set_value_by_id(ui1_chart, ui1_series, i, m.ui1.curve[i]);
+    }
+    lv_chart_refresh(ui1_chart);
+  }
 
-  ui1_current_val += 0.02f;
-  if (ui1_current_val > 2.0f) ui1_current_val = 0.0f;
+  // ---- Measurements ----
+  snprintf(buf, sizeof(buf), "Voltage = %.2f V", m.ui1.voltage_val);
+  if (ui1_label_v_meas) lv_label_set_text(ui1_label_v_meas, buf);
 
-  snprintf(buf, sizeof(buf), "Voltage = %.2f V", ui1_voltage_val);
-  lv_label_set_text(ui1_label_v_meas, buf);
-
-  snprintf(buf, sizeof(buf), "Ampere = %.2f A", ui1_current_val);
-  lv_label_set_text(ui1_label_i_meas, buf);
+  snprintf(buf, sizeof(buf), "Ampere = %.2f A", m.ui1.current_val);
+  if (ui1_label_i_meas) lv_label_set_text(ui1_label_i_meas, buf);
 
   // ---- Curve-info: runtime, capacity, state ----
-  ui1_runtime_sec++;
-  uint32_t minutes = ui1_runtime_sec / 60;
-  uint32_t seconds = ui1_runtime_sec % 60;
+  uint32_t minutes = m.ui1.runtime_sec / 60;
+  uint32_t seconds = m.ui1.runtime_sec % 60;
 
-  snprintf(buf, sizeof(buf), "Run-time = %02u:%02u", minutes, seconds);
-  lv_label_set_text(ui1_label_runtime, buf);
+  snprintf(buf, sizeof(buf), "Run-time = %02u:%02u", (unsigned)minutes, (unsigned)seconds);
+  if (ui1_label_runtime) lv_label_set_text(ui1_label_runtime, buf);
 
-  ui1_capacity_val += 0.10f;
-  if (ui1_capacity_val > 10.0f) ui1_capacity_val = 0.0f;
+  snprintf(buf, sizeof(buf), "Capacity = %.2f F", m.ui1.capacity_val);
+  if (ui1_label_capacity) lv_label_set_text(ui1_label_capacity, buf);
 
-  snprintf(buf, sizeof(buf), "Capacity = %.2f F", ui1_capacity_val);
-  lv_label_set_text(ui1_label_capacity, buf);
-
-  ui1_state_load = !ui1_state_load;
-  lv_label_set_text(ui1_label_state,
-                    ui1_state_load ? "Current state = load"
-                                   : "Current state = unload");
-
-  // ---- Verticale lijn heen en weer over de curve ----
-  ui1_progress_index += ui1_progress_dir;
-  if (ui1_progress_index >= 31) {
-    ui1_progress_index = 31;
-    ui1_progress_dir   = -1;
-  } else if (ui1_progress_index <= 0) {
-    ui1_progress_index = 0;
-    ui1_progress_dir   = 1;
+  if (ui1_label_state) {
+    lv_label_set_text(ui1_label_state,
+                      m.ui1.state_load ? "Current state = load"
+                                       : "Current state = unload");
   }
-  ui1_update_progress_line();
 
-  // ---- Buttons: nominal voltage & capacity laten lopen ----
-  ui1_nominal_v_val += 0.05f;
-  if (ui1_nominal_v_val > 5.0f) ui1_nominal_v_val = 0.0f;
+  // ---- Verticale lijn op basis van progress index ----
+  ui1_update_progress_line(m);
 
+  // ---- Buttons: nominal voltage & capacity ----
   if (ui1_lbl_btn_nominal_v) {
-    snprintf(buf, sizeof(buf), "Nominal voltage:\n%.2f V", ui1_nominal_v_val);
+    snprintf(buf, sizeof(buf), "Nominal voltage:\n%.2f V", m.ui1.nominal_v_val);
     lv_label_set_text(ui1_lbl_btn_nominal_v, buf);
   }
 
-  ui1_btn_capacity_val += 0.10f;
-  if (ui1_btn_capacity_val > 10.0f) ui1_btn_capacity_val = 0.0f;
-
   if (ui1_lbl_btn_capacity) {
-    snprintf(buf, sizeof(buf), "Capacity\n%.2f F", ui1_btn_capacity_val);
+    snprintf(buf, sizeof(buf), "Capacity\n%.2f F", m.ui1.btn_capacity_val);
     lv_label_set_text(ui1_lbl_btn_capacity, buf);
   }
 }
@@ -358,12 +313,6 @@ static lv_obj_t* ui2_btn_current_limit = nullptr;
 static lv_obj_t* ui2_btn_empty3        = nullptr;
 static lv_obj_t* ui2_btn_empty4        = nullptr;
 static lv_obj_t* ui2_btn_reset         = nullptr;
-
-// Dummy “instellingen/meting”
-static float ui2_set_voltage = 0.0f;   // “ingestelde” voltage
-static float ui2_meas_ampere = 0.0f;   // “gemeten” ampere
-static float ui2_dir         = 1.0f;   // op/af
-static const float UI2_VMAX  = 20.0f;  // 100% schaal (mag alles zijn)
 
 // helper: maak button met jouw style
 static lv_obj_t* ui2_make_btn(lv_obj_t* parent, const char* txt)
@@ -398,11 +347,6 @@ void ui2_create()
 {
     lv_obj_t* scr = lv_screen_active();
     lv_obj_clean(scr);
-
-    // reset dummy waardes
-    ui2_set_voltage = 0.0f;
-    ui2_meas_ampere = 0.0f;
-    ui2_dir = 1.0f;
 
     // --- Screen background ---
     lv_obj_set_style_bg_color(scr, lv_color_hex(UI_COL_BG), LV_PART_MAIN);
@@ -441,13 +385,6 @@ void ui2_create()
     ui2_btn_empty4        = ui2_make_btn(sidebar, "");       // leeg
     ui2_btn_reset         = ui2_make_btn(sidebar, "Reset");
 
-    // --- Main content area (links) ---
-    // We maken geen aparte container nodig; we plaatsen direct op scr met offsets
-    // zodat het mooi in het “linker deel” blijft.
-    // (rechter sidebar is 120 breed + marge, dus links ~ 340-350px)
-    const int left_area_center_x = 160; // tuned voor 480x320 met sidebar rechts
-    const int center_y           = 155;
-
     // --- Arc gauge ---
     ui2_arc = lv_arc_create(scr);
     lv_obj_set_size(ui2_arc, 180, 180);
@@ -462,13 +399,6 @@ void ui2_create()
     // Start onderaan: rotation op 270 graden (6 o’clock als startpunt)
     lv_arc_set_rotation(ui2_arc, 270);
 
-    // Stijl: geel op zwart, geen “knob”
-    lv_obj_set_style_arc_width(ui2_arc, 12, LV_PART_MAIN);
-    lv_obj_set_style_arc_color(ui2_arc, lv_color_hex(UI_COL_CHART_BORDER), LV_PART_MAIN);
-
-    lv_obj_set_style_arc_width(ui2_arc, 12, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(ui2_arc, lv_color_hex(UI_COL_CHART_SERIES), LV_PART_INDICATOR);
-
     // Background ring (vaste 360°)
     lv_obj_set_style_arc_width(ui2_arc, 12, LV_PART_MAIN);
     lv_obj_set_style_arc_color(ui2_arc,
@@ -480,7 +410,6 @@ void ui2_create()
     lv_obj_set_style_arc_color(ui2_arc,
                             lv_color_hex(UI_COL_CHART_SERIES), // helder geel
                             LV_PART_INDICATOR);
-
 
     // Knob verbergen
     lv_obj_set_style_opa(ui2_arc, LV_OPA_TRANSP, LV_PART_KNOB);
@@ -506,20 +435,12 @@ void ui2_create()
     lv_obj_align_to(ui2_label_ampere, ui2_arc, LV_ALIGN_OUT_BOTTOM_MID, 0, 20);
 }
 
-void ui2_update()
+void ui2_update(const DisplayModel& m)
 {
-    // Dummy dynamiek:
-    // - voltage loopt op/af tussen 0 en UI2_VMAX
-    // - ampere beweegt mee (willekeurig-ogend maar simpel)
-    ui2_set_voltage += 0.4f * ui2_dir;
-    if (ui2_set_voltage >= UI2_VMAX) { ui2_set_voltage = UI2_VMAX; ui2_dir = -1.0f; }
-    if (ui2_set_voltage <= 0.0f)    { ui2_set_voltage = 0.0f;    ui2_dir =  1.0f; }
-
-    // Ampere “meetwaarde”
-    ui2_meas_ampere = 0.2f + (ui2_set_voltage / UI2_VMAX) * 1.8f; // 0.2..2.0A
+    float vmax = (m.ui2.vmax <= 0.001f) ? 1.0f : m.ui2.vmax;
 
     // percentage voor de ring (0..100)
-    int pct = (int)((ui2_set_voltage / UI2_VMAX) * 100.0f + 0.5f);
+    int pct = (int)((m.ui2.set_voltage / vmax) * 100.0f + 0.5f);
     if (pct < 0) pct = 0;
     if (pct > 100) pct = 100;
 
@@ -530,13 +451,13 @@ void ui2_update()
     // Labels updaten
     if (ui2_label_voltage) {
         char b[32];
-        snprintf(b, sizeof(b), "Voltage:\n%.2f", ui2_set_voltage);
+        snprintf(b, sizeof(b), "Voltage:\n%.2f", m.ui2.set_voltage);
         lv_label_set_text(ui2_label_voltage, b);
     }
 
     if (ui2_label_ampere) {
         char b[32];
-        snprintf(b, sizeof(b), "Ampere:\n%.2f", ui2_meas_ampere);
+        snprintf(b, sizeof(b), "Ampere:\n%.2f", m.ui2.meas_ampere);
         lv_label_set_text(ui2_label_ampere, b);
     }
 }
@@ -555,12 +476,6 @@ static lv_obj_t* ui3_btn_vlimit        = nullptr;
 static lv_obj_t* ui3_btn_empty3        = nullptr;
 static lv_obj_t* ui3_btn_empty4        = nullptr;
 static lv_obj_t* ui3_btn_reset         = nullptr;
-
-// Dummy “instellingen/meting”
-static float ui3_set_ampere   = 0.0f;   // ingestelde stroom (sink)
-static float ui3_meas_voltage = 0.0f;   // gemeten spanning
-static float ui3_dir          = 1.0f;   // op/af
-static const float UI3_IMAX   = 5.0f;   // 100% schaal (bijv. 5A)
 
 // helper: maak button met jouw style (zelfde als UI2/1)
 static lv_obj_t* ui3_make_btn(lv_obj_t* parent, const char* txt)
@@ -595,11 +510,6 @@ void ui3_create()
 {
     lv_obj_t* scr = lv_screen_active();
     lv_obj_clean(scr);
-
-    // reset dummy waardes
-    ui3_set_ampere = 0.0f;
-    ui3_meas_voltage = 0.0f;
-    ui3_dir = 1.0f;
 
     // achtergrond
     lv_obj_set_style_bg_color(scr, lv_color_hex(UI_COL_BG), LV_PART_MAIN);
@@ -676,20 +586,12 @@ void ui3_create()
     lv_obj_align_to(ui3_label_voltage, ui3_arc, LV_ALIGN_OUT_BOTTOM_MID, 0, 20);
 }
 
-void ui3_update()
+void ui3_update(const DisplayModel& m)
 {
-    // Dummy dynamiek:
-    // - ingestelde ampere loopt op/af tussen 0..UI3_IMAX
-    ui3_set_ampere += 0.25f * ui3_dir;
-    if (ui3_set_ampere >= UI3_IMAX) { ui3_set_ampere = UI3_IMAX; ui3_dir = -1.0f; }
-    if (ui3_set_ampere <= 0.0f)    { ui3_set_ampere = 0.0f;    ui3_dir =  1.0f; }
-
-    // gemeten voltage “zakt” als je meer stroom trekt (dummy)
-    // (dus high current -> lower voltage)
-    ui3_meas_voltage = 12.0f - (ui3_set_ampere / UI3_IMAX) * 6.0f; // 12V -> 6V
+    float imax = (m.ui3.imax <= 0.001f) ? 1.0f : m.ui3.imax;
 
     // ring percentage op basis van ingestelde ampere
-    int pct = (int)((ui3_set_ampere / UI3_IMAX) * 100.0f + 0.5f);
+    int pct = (int)((m.ui3.set_ampere / imax) * 100.0f + 0.5f);
     if (pct < 0) pct = 0;
     if (pct > 100) pct = 100;
 
@@ -700,13 +602,13 @@ void ui3_update()
     // labels updaten
     if (ui3_label_ampere) {
         char b[32];
-        snprintf(b, sizeof(b), "Ampere:\n%.2f", ui3_set_ampere);
+        snprintf(b, sizeof(b), "Ampere:\n%.2f", m.ui3.set_ampere);
         lv_label_set_text(ui3_label_ampere, b);
     }
 
     if (ui3_label_voltage) {
         char b[32];
-        snprintf(b, sizeof(b), "Voltage:\n%.2f", ui3_meas_voltage);
+        snprintf(b, sizeof(b), "Voltage:\n%.2f", m.ui3.meas_voltage);
         lv_label_set_text(ui3_label_voltage, b);
     }
 }
