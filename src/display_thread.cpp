@@ -205,4 +205,4 @@ void display_task(void* pvParameters) {
 
     vTaskDelay(pdMS_TO_TICKS(5));
   }
-}
+} 
